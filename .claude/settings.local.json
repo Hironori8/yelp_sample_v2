@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go get:*)",
+      "Bash(curl:*)",
+      "Bash(mkdir:*)",
+      "Bash(docker-compose up:*)",
+      "Bash(docker-compose:*)",
+      "Bash(docker rm:*)",
+      "Bash(pkill:*)",
+      "Bash(true)",
+      "Bash(docker run:*)"
+    ],
+    "deny": []
+  }
+}
