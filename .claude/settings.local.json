@@ -9,7 +9,13 @@
       "Bash(docker rm:*)",
       "Bash(pkill:*)",
       "Bash(true)",
-      "Bash(docker run:*)"
+      "Bash(docker run:*)",
+      "Bash(cp:*)",
+      "Bash(go mod:*)",
+      "Bash(docker container:*)",
+      "Bash(docker stop:*)",
+      "Bash(docker logs:*)",
+      "Bash(rm:*)"
     ],
     "deny": []
   }

@@ -18,18 +18,45 @@ services:
       timeout: 5s
       retries: 5
 
-  app:
-    build: .
-    container_name: yelp_app
+  gateway:
+    build: ./services/gateway
+    container_name: yelp_gateway
     ports:
       - "8080:8080"
+    environment:
+      PORT: 8080
+    depends_on:
+      - business-service
+      - review-service
+
+  business-service:
+    build: ./services/business
+    container_name: yelp_business_service
+    ports:
+      - "8081:8081"
     environment:
       DB_HOST: postgres
       DB_USER: postgres
       DB_PASSWORD: postgres
       DB_NAME: yelp_sample
       DB_PORT: 5432
-      PORT: 8080
+      PORT: 8081
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  review-service:
+    build: ./services/review
+    container_name: yelp_review_service
+    ports:
+      - "8082:8082"
+    environment:
+      DB_HOST: postgres
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: yelp_sample
+      DB_PORT: 5432
+      PORT: 8082
     depends_on:
       postgres:
         condition: service_healthy
