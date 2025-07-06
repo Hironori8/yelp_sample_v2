@@ -15,7 +15,10 @@
       "Bash(docker container:*)",
       "Bash(docker stop:*)",
       "Bash(docker logs:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(CASSANDRA_HOSTS=localhost:9042 go run main.go)",
+      "Bash(go run:*)",
+      "Bash(lsof:*)"
     ],
     "deny": []
   }

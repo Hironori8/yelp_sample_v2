@@ -27,7 +27,11 @@ func main() {
 	})
 
 	// Business service routes
-	businessURL, _ := url.Parse("http://business-service:8081")
+	businessServiceURL := os.Getenv("BUSINESS_SERVICE_URL")
+	if businessServiceURL == "" {
+		businessServiceURL = "http://business-service:8081"
+	}
+	businessURL, _ := url.Parse(businessServiceURL)
 	businessProxy := httputil.NewSingleHostReverseProxy(businessURL)
 
 	r.GET("/businesses", func(c *gin.Context) {
@@ -39,7 +43,11 @@ func main() {
 	})
 
 	// Review service routes
-	reviewURL, _ := url.Parse("http://review-service:8082")
+	reviewServiceURL := os.Getenv("REVIEW_SERVICE_URL")
+	if reviewServiceURL == "" {
+		reviewServiceURL = "http://review-service:8082"
+	}
+	reviewURL, _ := url.Parse(reviewServiceURL)
 	reviewProxy := httputil.NewSingleHostReverseProxy(reviewURL)
 
 	r.GET("/businesses/:id/reviews", func(c *gin.Context) {
@@ -56,6 +64,26 @@ func main() {
 
 	r.GET("/reviews/:id", func(c *gin.Context) {
 		reviewProxy.ServeHTTP(c.Writer, c.Request)
+	})
+
+	// Logging service routes
+	loggingServiceURL := os.Getenv("LOGGING_SERVICE_URL")
+	if loggingServiceURL == "" {
+		loggingServiceURL = "http://logging-service:8083"
+	}
+	loggingURL, _ := url.Parse(loggingServiceURL)
+	loggingProxy := httputil.NewSingleHostReverseProxy(loggingURL)
+
+	r.POST("/logs/review-view", func(c *gin.Context) {
+		loggingProxy.ServeHTTP(c.Writer, c.Request)
+	})
+
+	r.GET("/logs/user/:user_id/history", func(c *gin.Context) {
+		loggingProxy.ServeHTTP(c.Writer, c.Request)
+	})
+
+	r.GET("/logs/business/:business_id/stats", func(c *gin.Context) {
+		loggingProxy.ServeHTTP(c.Writer, c.Request)
 	})
 
 	port := os.Getenv("PORT")
