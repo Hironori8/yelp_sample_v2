@@ -1,6 +1,7 @@
 package main
 
 import (
+	"auth/handlers"
 	"fmt"
 	"log"
 	"net/http"
