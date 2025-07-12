@@ -8,8 +8,7 @@ import (
 	"os"
 	"strconv"
 
-	"review/database"
-	"review/models"
+	"github.com/yelp-sample-v2/shared/models"
 
 	"github.com/gin-gonic/gin"
 )
@@ -23,7 +22,7 @@ func getUserID(c *gin.Context) uint {
 			return uint(id)
 		}
 	}
-	
+
 	// Anonymous user
 	fmt.Printf("Using anonymous user ID: 0\n")
 	return 0

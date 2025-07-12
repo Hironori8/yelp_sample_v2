@@ -2,10 +2,8 @@ FROM golang:1.23-alpine AS builder
 
 WORKDIR /app
 
-# Copy root module files first
-COPY go.mod go.sum ./
-COPY ./models ./models
-COPY ./database ./database
+# Copy shared models
+COPY ./shared/models ./shared/models
 
 # Copy service specific files
 COPY ./services/auth/go.mod ./services/auth/go.sum ./

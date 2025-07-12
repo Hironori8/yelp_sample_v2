@@ -2,6 +2,9 @@ FROM golang:1.23-alpine AS builder
 
 WORKDIR /app
 
+# Copy shared models
+COPY ./shared/models ./shared/models
+
 # Copy service files
 COPY ./services/review .
 

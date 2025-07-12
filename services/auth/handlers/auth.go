@@ -6,10 +6,10 @@ import (
 	"time"
 
 	"auth/database"
-	"auth/models"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/yelp-sample-v2/shared/models"
 	"golang.org/x/crypto/bcrypt"
 )
 

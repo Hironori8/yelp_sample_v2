@@ -5,9 +5,9 @@ import (
 	"strconv"
 
 	"business/database"
-	"business/models"
 
 	"github.com/gin-gonic/gin"
+	"github.com/yelp-sample-v2/shared/models"
 )
 
 func SearchBusinesses(c *gin.Context) {

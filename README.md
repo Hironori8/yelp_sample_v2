@@ -78,6 +78,7 @@ Yelp風のレストラン検索・レビューAPIのマイクロサービス版�
 
 ### 起動方法
 
+1. リポジトリをクローン
 ```bash
 git clone <repository-url>
 cd yelp_sample_v2

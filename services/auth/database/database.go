@@ -5,8 +5,7 @@ import (
 	"log"
 	"os"
 
-	"auth/models"
-
+	"github.com/yelp-sample-v2/shared/models"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
