@@ -7,13 +7,93 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 )
+
+type Claims struct {
+	UserID uint   `json:"user_id"`
+	Email  string `json:"email"`
+	jwt.RegisteredClaims
+}
+
+func getJWTSecret() string {
+	secret := os.Getenv("JWT_SECRET")
+	if secret == "" {
+		secret = "your-super-secret-jwt-key"
+	}
+	return secret
+}
+
+func authMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		authHeader := c.GetHeader("Authorization")
+		if authHeader == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header required"})
+			c.Abort()
+			return
+		}
+
+		if !strings.HasPrefix(authHeader, "Bearer ") {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid authorization format"})
+			c.Abort()
+			return
+		}
+
+		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+		claims := &Claims{}
+
+		token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+			return []byte(getJWTSecret()), nil
+		})
+
+		if err != nil || !token.Valid {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
+			c.Abort()
+			return
+		}
+
+		// Store user info in context and add headers for downstream services
+		c.Set("user_id", claims.UserID)
+		c.Set("user_email", claims.Email)
+		c.Request.Header.Set("X-User-ID", strconv.FormatUint(uint64(claims.UserID), 10))
+		c.Request.Header.Set("X-User-Email", claims.Email)
+		c.Next()
+	}
+}
+
+func optionalAuthMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		authHeader := c.GetHeader("Authorization")
+		if authHeader != "" && strings.HasPrefix(authHeader, "Bearer ") {
+			tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+			claims := &Claims{}
+
+			token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+				return []byte(getJWTSecret()), nil
+			})
+
+			if err == nil && token.Valid {
+				// Store user info in context and add headers for downstream services
+				c.Set("user_id", claims.UserID)
+				c.Set("user_email", claims.Email)
+				c.Request.Header.Set("X-User-ID", strconv.FormatUint(uint64(claims.UserID), 10))
+				c.Request.Header.Set("X-User-Email", claims.Email)
+				fmt.Printf("Gateway: Set X-User-ID header to %d\n", claims.UserID)
+			}
+		}
+		// Continue regardless of token validity (optional auth)
+		c.Next()
+	}
+}
 
 func main() {
 	r := gin.Default()
 
+	// Public routes
 	r.GET("/", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"message": "API Gateway is running!",
@@ -26,6 +106,30 @@ func main() {
 		})
 	})
 
+	// Auth service routes (public)
+	authServiceURL := os.Getenv("AUTH_SERVICE_URL")
+	if authServiceURL == "" {
+		authServiceURL = "http://auth-service:8084"
+	}
+	authURL, _ := url.Parse(authServiceURL)
+	authProxy := httputil.NewSingleHostReverseProxy(authURL)
+
+	authGroup := r.Group("/auth")
+	{
+		authGroup.POST("/register", func(c *gin.Context) {
+			authProxy.ServeHTTP(c.Writer, c.Request)
+		})
+		authGroup.POST("/login", func(c *gin.Context) {
+			authProxy.ServeHTTP(c.Writer, c.Request)
+		})
+		authGroup.POST("/logout", func(c *gin.Context) {
+			authProxy.ServeHTTP(c.Writer, c.Request)
+		})
+		authGroup.GET("/me", authMiddleware(), func(c *gin.Context) {
+			authProxy.ServeHTTP(c.Writer, c.Request)
+		})
+	}
+
 	// Business service routes
 	businessServiceURL := os.Getenv("BUSINESS_SERVICE_URL")
 	if businessServiceURL == "" {
@@ -34,6 +138,7 @@ func main() {
 	businessURL, _ := url.Parse(businessServiceURL)
 	businessProxy := httputil.NewSingleHostReverseProxy(businessURL)
 
+	// Public business routes
 	r.GET("/businesses", func(c *gin.Context) {
 		businessProxy.ServeHTTP(c.Writer, c.Request)
 	})
@@ -50,19 +155,27 @@ func main() {
 	reviewURL, _ := url.Parse(reviewServiceURL)
 	reviewProxy := httputil.NewSingleHostReverseProxy(reviewURL)
 
-	r.GET("/businesses/:id/reviews", func(c *gin.Context) {
+	// Review routes (public but with optional auth for logging)
+	r.GET("/businesses/:id/reviews", optionalAuthMiddleware(), func(c *gin.Context) {
+		// Debug: check if user info is in context
+		if userID, exists := c.Get("user_id"); exists {
+			fmt.Printf("Gateway: Found user_id in context: %v\n", userID)
+		} else {
+			fmt.Printf("Gateway: No user_id in context\n")
+		}
 		reviewProxy.ServeHTTP(c.Writer, c.Request)
 	})
 
-	r.POST("/businesses/:id/reviews", func(c *gin.Context) {
+	// Protected review routes
+	r.POST("/businesses/:id/reviews", authMiddleware(), func(c *gin.Context) {
 		reviewProxy.ServeHTTP(c.Writer, c.Request)
 	})
 
-	r.GET("/reviews", func(c *gin.Context) {
+	r.GET("/reviews", authMiddleware(), func(c *gin.Context) {
 		reviewProxy.ServeHTTP(c.Writer, c.Request)
 	})
 
-	r.GET("/reviews/:id", func(c *gin.Context) {
+	r.GET("/reviews/:id", authMiddleware(), func(c *gin.Context) {
 		reviewProxy.ServeHTTP(c.Writer, c.Request)
 	})
 
@@ -74,15 +187,16 @@ func main() {
 	loggingURL, _ := url.Parse(loggingServiceURL)
 	loggingProxy := httputil.NewSingleHostReverseProxy(loggingURL)
 
-	r.POST("/logs/review-view", func(c *gin.Context) {
+	// Protected logging routes
+	r.POST("/logs/review-view", authMiddleware(), func(c *gin.Context) {
 		loggingProxy.ServeHTTP(c.Writer, c.Request)
 	})
 
-	r.GET("/logs/user/:user_id/history", func(c *gin.Context) {
+	r.GET("/logs/user/:user_id/history", authMiddleware(), func(c *gin.Context) {
 		loggingProxy.ServeHTTP(c.Writer, c.Request)
 	})
 
-	r.GET("/logs/business/:business_id/stats", func(c *gin.Context) {
+	r.GET("/logs/business/:business_id/stats", authMiddleware(), func(c *gin.Context) {
 		loggingProxy.ServeHTTP(c.Writer, c.Request)
 	})
 

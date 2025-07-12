@@ -7,7 +7,7 @@ import (
 	"os"
 
 	"business/handlers"
-	"yelp_sample_v2/database"
+	"business/database"
 
 	"github.com/gin-gonic/gin"
 )

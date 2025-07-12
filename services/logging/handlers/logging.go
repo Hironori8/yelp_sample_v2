@@ -24,8 +24,8 @@ func LogReviewView(c *gin.Context) {
 		return
 	}
 
-	// TODO: 認証システム実装後はPostgreSQLユーザーIDとの適切なマッピングを実装
-	userID := 1
+	// User ID comes from the request payload
+	userID := req.UserID
 
 	// Create log entry
 	log := models.ReviewViewLog{

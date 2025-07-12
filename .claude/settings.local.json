@@ -18,7 +18,9 @@
       "Bash(rm:*)",
       "Bash(CASSANDRA_HOSTS=localhost:9042 go run main.go)",
       "Bash(go run:*)",
-      "Bash(lsof:*)"
+      "Bash(lsof:*)",
+      "Bash(find:*)",
+      "Bash(docker exec:*)"
     ],
     "deny": []
   }

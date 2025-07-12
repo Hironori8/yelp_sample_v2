@@ -1,21 +1,31 @@
 # Yelp Sample API v2 - Microservices Architecture
 
-Yelp風のレストラン検索・レビューAPIのマイクロサービス版です。APIゲートウェイを通じて、ビジネスサービスとレビューサービスが独立して動作します。
+Yelp風のレストラン検索・レビューAPIのマイクロサービス版です。APIゲートウェイを通じて、認証、ビジネス、レビュー、ログサービスが独立して動作します。
 
 ## アーキテクチャ
 
 本プロジェクトはマイクロサービスアーキテクチャを採用しており、以下のサービスで構成されています：
 
-- **APIゲートウェイ** (Port 8080): リクエストを各サービスにルーティング
+- **APIゲートウェイ** (Port 8080): 認証とリクエストルーティング
+- **認証サービス** (Port 8084): ユーザー認証・JWT発行
 - **ビジネスサービス** (Port 8081): 店舗情報の管理
 - **レビューサービス** (Port 8082): レビューの管理
-- **PostgreSQL データベース**: 全サービスで共有される単一データベース
+- **ログサービス** (Port 8083): ユーザー行動ログの記録
+- **PostgreSQL データベース**: ユーザー・ビジネス・レビューデータ
+- **Cassandra データベース**: ログデータ（時系列データ）
+
+### ネットワーク構成
+
+- **Frontend Network**: APIゲートウェイのみ外部公開 (Port 8080)
+- **Backend Network**: 内部サービス間通信専用（外部アクセス不可）
 
 ## 機能
 
+- **ユーザー認証**: JWT認証による安全な認証システム
 - **ビジネス検索**: 位置情報やカテゴリでレストランを検索
 - **ビジネス詳細**: 個別のレストラン情報を取得
-- **レビュー機能**: レストランのレビューを投稿・取得
+- **レビュー機能**: 認証ユーザーがレビューを投稿・取得
+- **ユーザー行動ログ**: レビュー閲覧履歴の記録・分析
 - **RESTful API**: 標準的なHTTP APIエンドポイント
 - **マイクロサービス**: 独立してスケール可能なサービス分離
 
@@ -23,8 +33,11 @@ Yelp風のレストラン検索・レビューAPIのマイクロサービス版�
 
 - **Backend**: Go 1.23
 - **Web Framework**: Gin
-- **ORM**: GORM
-- **Database**: PostgreSQL 15
+- **ORM**: GORM (PostgreSQL), ScyllaDB/Cassandra (ログデータ)
+- **Authentication**: JWT (JSON Web Token)
+- **Database**: 
+  - PostgreSQL 15 (トランザクショナルデータ)
+  - Cassandra 4.0 (ログ・時系列データ)
 - **Architecture**: Microservices with API Gateway
 - **Containerization**: Docker & Docker Compose
 
@@ -32,16 +45,29 @@ Yelp風のレストラン検索・レビューAPIのマイクロサービス版�
 
 すべてのリクエストはAPIゲートウェイ (http://localhost:8080) 経由で行います。
 
+### パブリックエンドポイント（認証不要）
+
 | Method | Endpoint | Service | Description |
 |--------|----------|---------|-------------|
 | GET | `/` | Gateway | APIゲートウェイステータス確認 |
 | GET | `/health` | Gateway | ヘルスチェック |
+| POST | `/auth/register` | Auth | ユーザー登録 |
+| POST | `/auth/login` | Auth | ログイン（JWT取得） |
+| POST | `/auth/logout` | Auth | ログアウト |
 | GET | `/businesses` | Business | ビジネス検索 |
 | GET | `/businesses/:id` | Business | ビジネス詳細取得 |
 | GET | `/businesses/:id/reviews` | Review | ビジネスのレビュー取得 |
+
+### 保護されたエンドポイント（JWT認証必要）
+
+| Method | Endpoint | Service | Description |
+|--------|----------|---------|-------------|
+| GET | `/auth/me` | Auth | 現在ユーザー情報取得 |
 | POST | `/businesses/:id/reviews` | Review | レビュー投稿 |
 | GET | `/reviews` | Review | 全レビュー取得 |
 | GET | `/reviews/:id` | Review | 個別レビュー取得 |
+| GET | `/logs/user/:user_id/history` | Logging | ユーザー閲覧履歴 |
+| GET | `/logs/business/:business_id/stats` | Logging | ビジネス統計 |
 
 ## セットアップ
 
@@ -70,8 +96,11 @@ docker-compose ps
 
 4. データベースの初期化確認
 ```bash
-# サンプルデータが既に投入されていることを確認
+# PostgreSQLのサンプルデータ確認
 docker exec yelp_postgres psql -U postgres -d yelp_sample -c "\dt"
+
+# Cassandraのキースペース確認
+docker exec yelp_cassandra cqlsh -e "DESCRIBE KEYSPACES;"
 ```
 
 5. APIゲートウェイの動作確認
@@ -83,8 +112,15 @@ curl http://localhost:8080/health
 
 ### APIゲートウェイ
 - **Port**: 8080
-- **役割**: リクエストのルーティング、負荷分散
+- **役割**: JWT認証、リクエストルーティング、セキュリティ制御
+- **認証方式**: ヘッダーベースのユーザー情報伝達
 - **エンドポイント**: 全APIのエントリーポイント
+
+### 認証サービス
+- **Port**: 8084（内部通信用）
+- **役割**: ユーザー登録・ログイン・JWT発行
+- **データベース**: PostgreSQL（ユーザー情報）
+- **セキュリティ**: bcrypt パスワードハッシュ化
 
 ### ビジネスサービス
 - **Port**: 8081（内部通信用）
@@ -93,92 +129,77 @@ curl http://localhost:8080/health
 
 ### レビューサービス
 - **Port**: 8082（内部通信用）
-- **役割**: レビューデータの管理
+- **役割**: レビューデータの管理、ユーザー行動ログ送信
 - **データベース**: PostgreSQL（共有）
+
+### ログサービス
+- **Port**: 8083（内部通信用）
+- **役割**: ユーザー行動ログの記録・分析
+- **データベース**: Cassandra（時系列データ）
 
 ## 環境変数
 
 各サービスは以下の環境変数を使用します：
 
-### データベース設定
+### データベース設定（PostgreSQL）
 - `DB_HOST`: データベースホスト（デフォルト: postgres）
 - `DB_USER`: データベースユーザー（デフォルト: postgres）
 - `DB_PASSWORD`: データベースパスワード（デフォルト: postgres）
 - `DB_NAME`: データベース名（デフォルト: yelp_sample）
 - `DB_PORT`: データベースポート（デフォルト: 5432）
 
+### 認証設定
+- `JWT_SECRET`: JWT署名シークレット
+- `JWT_EXPIRES_IN`: JWT有効期限（デフォルト: 24h）
+
 ### サービス固有設定
 - `PORT`: 各サービスのポート番号
   - Gateway: 8080
   - Business: 8081
   - Review: 8082
+  - Logging: 8083
+  - Auth: 8084
+
+### ログサービス設定
+- `CASSANDRA_HOSTS`: Cassandraホスト（デフォルト: cassandra:9042）
 
 ## データベーススキーマ
 
-### Users テーブル
-- ユーザー情報（ID、名前、メール、作成日時、更新日時）
+### PostgreSQL（トランザクショナルデータ）
 
-### Businesses テーブル
+#### Users テーブル
+- ユーザー情報（ID、名前、メール、パスワード、作成日時、更新日時）
+
+#### Businesses テーブル
 - ビジネス情報（ID、名前、カテゴリ、位置情報、住所、電話番号、ウェブサイト、説明、評価、レビュー数、作成日時、更新日時）
 
-### Reviews テーブル
+#### Reviews テーブル
 - レビュー情報（ID、ビジネスID、ユーザーID、評価、テキスト、作成日時、更新日時）
 
-## 開発
+### Cassandra（ログデータ）
 
-### ローカル開発環境での実行
+#### review_view_logs テーブル
+- レビュー閲覧ログ（ユーザーID、ビジネスID、レビューID、閲覧日時、IPアドレス、ユーザーエージェント）
 
-個別サービスの開発時：
+## 認証フロー
 
+### 1. ユーザー登録
 ```bash
-# データベースのみ起動
-docker-compose up -d postgres
-
-# ビジネスサービスの起動
-cd services/business
-go mod download
-go run main.go
-
-# レビューサービスの起動（別ターミナル）
-cd services/review
-go mod download
-go run main.go
-
-# APIゲートウェイの起動（別ターミナル）
-cd services/gateway
-go mod download
-go run main.go
+curl -X POST "http://localhost:8080/auth/register" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"山田太郎","email":"yamada@example.com","password":"password123"}'
 ```
 
-### ログの確認
-
-各サービスのログを確認：
-
+### 2. ログイン（JWTトークン取得）
 ```bash
-# 全サービスのログ
-docker-compose logs
-
-# 特定サービスのログ
-docker logs yelp_gateway
-docker logs yelp_business_service
-docker logs yelp_review_service
-docker logs yelp_postgres
+TOKEN=$(curl -s -X POST "http://localhost:8080/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"yamada@example.com","password":"password123"}' | jq -r '.token')
 ```
 
-## サンプルデータ
-
-`sample_data.sql`には以下のサンプルデータが含まれています：
-
-- 5名のユーザー
-- 8件のビジネス（ラーメン店、カフェ、寿司店、イタリアン、居酒屋、焼肉店、ベーカリー、中華料理）
-- 21件のレビュー
-
-### 現在のデータ状況
+### 3. 認証が必要なAPIの呼び出し
 ```bash
-# データ件数確認
-docker exec yelp_postgres psql -U postgres -d yelp_sample -c "SELECT COUNT(*) FROM users;"
-docker exec yelp_postgres psql -U postgres -d yelp_sample -c "SELECT COUNT(*) FROM businesses;"
-docker exec yelp_postgres psql -U postgres -d yelp_sample -c "SELECT COUNT(*) FROM reviews;"
+curl -H "Authorization: Bearer $TOKEN" "http://localhost:8080/reviews"
 ```
 
 ## API使用例
@@ -193,21 +214,22 @@ curl "http://localhost:8080/businesses?category=ラーメン&limit=10"
 curl "http://localhost:8080/businesses/1"
 ```
 
-### レビュー取得
+### レビュー取得（パブリック）
 ```bash
 curl "http://localhost:8080/businesses/1/reviews"
 ```
 
-### レビュー投稿
+### レビュー投稿（認証必要）
 ```bash
 curl -X POST "http://localhost:8080/businesses/1/reviews" \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"rating": 5, "text": "とても美味しかったです！"}'
 ```
 
-### 全レビュー取得
+### ユーザー閲覧履歴取得（認証必要）
 ```bash
-curl "http://localhost:8080/reviews"
+curl -H "Authorization: Bearer $TOKEN" "http://localhost:8080/logs/user/1/history"
 ```
 
 ## プロジェクト構成
@@ -223,37 +245,105 @@ yelp_sample_v2/
 │   │   ├── go.mod
 │   │   ├── go.sum
 │   │   └── Dockerfile
+│   ├── auth/                    # 認証サービス
+│   │   ├── main.go
+│   │   ├── go.mod
+│   │   ├── go.sum
+│   │   ├── Dockerfile
+│   │   ├── database/
+│   │   ├── models/
+│   │   └── handlers/
 │   ├── business/                # ビジネスサービス
 │   │   ├── main.go
 │   │   ├── go.mod
 │   │   ├── go.sum
 │   │   ├── Dockerfile
-│   │   ├── database/            # データベース設定
-│   │   │   └── database.go
-│   │   ├── models/              # データモデル
-│   │   │   ├── business.go
-│   │   │   ├── review.go
-│   │   │   └── user.go
-│   │   └── handlers/            # HTTPハンドラー
-│   │       └── business.go
-│   └── review/                  # レビューサービス
+│   │   ├── database/
+│   │   ├── models/
+│   │   └── handlers/
+│   ├── review/                  # レビューサービス
+│   │   ├── main.go
+│   │   ├── go.mod
+│   │   ├── go.sum
+│   │   ├── Dockerfile
+│   │   ├── database/
+│   │   ├── models/
+│   │   └── handlers/
+│   └── logging/                 # ログサービス
 │       ├── main.go
 │       ├── go.mod
 │       ├── go.sum
 │       ├── Dockerfile
-│       ├── database/            # データベース設定
-│       │   └── database.go
-│       ├── models/              # データモデル
-│       │   ├── business.go
-│       │   ├── review.go
-│       │   └── user.go
-│       └── handlers/            # HTTPハンドラー
-│           └── review.go
+│       ├── cassandra/
+│       ├── models/
+│       └── handlers/
 └── <legacy files in root>/      # 旧モノリシック版（参考用）
-    ├── main.go
-    ├── database/
-    ├── models/
-    └── handlers/
+```
+
+## セキュリティ機能
+
+### ネットワーク分離
+- **Frontend Network**: APIゲートウェイのみ外部アクセス可能
+- **Backend Network**: 内部サービス間通信専用（external: false）
+
+### 認証・認可
+- **JWT認証**: ステートレス認証トークン
+- **パスワードハッシュ化**: bcrypt使用
+- **認証責務分離**: APIゲートウェイで一元管理
+
+### API保護
+- **認証必須エンドポイント**: レビュー投稿、履歴取得等
+- **オプション認証**: パブリックエンドポイントでのログ記録
+
+## 開発
+
+### ローカル開発環境での実行
+
+個別サービスの開発時：
+
+```bash
+# データベースのみ起動
+docker-compose up -d postgres cassandra
+
+# 各サービスをローカルで起動（例：レビューサービス）
+cd services/review
+go mod download
+go run main.go
+```
+
+### ログの確認
+
+```bash
+# 全サービスのログ
+docker-compose logs
+
+# 特定サービスのログ
+docker logs yelp_gateway
+docker logs yelp_auth_service
+docker logs yelp_business_service
+docker logs yelp_review_service
+docker logs yelp_logging_service
+docker logs yelp_postgres
+docker logs yelp_cassandra
+```
+
+## サンプルデータ
+
+`sample_data.sql`には以下のサンプルデータが含まれています：
+
+- 5名のユーザー（パスワード付き）
+- 8件のビジネス（ラーメン店、カフェ、寿司店、イタリアン、居酒屋、焼肉店、ベーカリー、中華料理）
+- 21件のレビュー
+
+### 現在のデータ状況
+```bash
+# PostgreSQLデータ件数確認
+docker exec yelp_postgres psql -U postgres -d yelp_sample -c "SELECT COUNT(*) FROM users;"
+docker exec yelp_postgres psql -U postgres -d yelp_sample -c "SELECT COUNT(*) FROM businesses;"
+docker exec yelp_postgres psql -U postgres -d yelp_sample -c "SELECT COUNT(*) FROM reviews;"
+
+# Cassandraログデータ確認
+docker exec yelp_cassandra cqlsh -e "SELECT COUNT(*) FROM yelp_logs.review_view_logs;"
 ```
 
 ## トラブルシューティング
@@ -273,15 +363,28 @@ docker-compose up --build -d
 # PostgreSQLコンテナの状態確認
 docker logs yelp_postgres
 
-# データベースの健康状態確認
+# Cassandraの状態確認
+docker logs yelp_cassandra
+
+# ヘルスチェック確認
 docker-compose ps
+```
+
+### 認証エラー
+```bash
+# JWTトークンの有効性確認
+# ログイン後、即座にトークンを使用してください（24時間有効）
+
+# 認証サービスのログ確認
+docker logs yelp_auth_service
 ```
 
 ### サービス間通信エラー
 ```bash
 # ネットワーク設定確認
 docker network ls
-docker network inspect yelp_sample_v2_default
+docker network inspect yelp_sample_v2_backend
+docker network inspect yelp_sample_v2_frontend
 ```
 
 ## スケーリング
@@ -292,27 +395,30 @@ docker network inspect yelp_sample_v2_default
 # レビューサービスを3インスタンスにスケール
 docker-compose up --scale review-service=3 -d
 
-# ビジネスサービスを2インスタンスにスケール
-docker-compose up --scale business-service=2 -d
+# ログサービスを2インスタンスにスケール
+docker-compose up --scale logging-service=2 -d
 ```
 
 ## ステータス
 
 ✅ **完了**
 - マイクロサービスアーキテクチャの実装
-- Docker Compose環境の構築
-- API Gateway の実装
-- Business Service の実装
-- Review Service の実装
-- PostgreSQL データベース設定
+- JWT認証システムの実装
+- API Gateway での認証・ルーティング制御
+- Business/Review/Auth/Logging Service の実装
+- PostgreSQL + Cassandra データベース設定
+- ネットワーク分離・セキュリティ設定
+- ユーザー行動ログシステム
 - サンプルデータの投入
 - 全サービスの動作確認完了
 
 ## 今後の拡張予定
 
-- [ ] サービス間認証の実装
-- [ ] API Gateway での負荷分散
+- [ ] サービス間mTLS認証の実装
+- [ ] API Gateway での負荷分散・サーキットブレーカー
 - [ ] サービスディスカバリーの導入
-- [ ] 分散トレーシングの実装
-- [ ] メトリクス監視の追加
+- [ ] 分散トレーシング（Jaeger）の実装
+- [ ] メトリクス監視（Prometheus/Grafana）の追加
+- [ ] ログ分析・可視化機能
 - [ ] フロントエンド（Next.js）の追加
+- [ ] API レート制限の実装

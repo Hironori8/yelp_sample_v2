@@ -3,15 +3,31 @@ package handlers
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"strconv"
 
-	"yelp_sample_v2/database"
-	"yelp_sample_v2/models"
+	"review/database"
+	"review/models"
 
 	"github.com/gin-gonic/gin"
 )
+
+func getUserID(c *gin.Context) uint {
+	// Get user ID from header (set by API Gateway)
+	userIDStr := c.GetHeader("X-User-ID")
+	if userIDStr != "" {
+		if id, err := strconv.Atoi(userIDStr); err == nil {
+			fmt.Printf("Got user ID from header: %d\n", id)
+			return uint(id)
+		}
+	}
+	
+	// Anonymous user
+	fmt.Printf("Using anonymous user ID: 0\n")
+	return 0
+}
 
 func GetBusinessReviews(c *gin.Context) {
 	id := c.Param("id")
@@ -45,8 +61,9 @@ func GetBusinessReviews(c *gin.Context) {
 		return
 	}
 
-	// Log review views asynchronously
-	go logReviewViews(c, id, reviews)
+	// Log review views asynchronously (try header first, then JWT)
+	userID := getUserID(c)
+	go logReviewViews(userID, c, id, reviews)
 
 	c.JSON(http.StatusOK, reviews)
 }
@@ -127,8 +144,9 @@ func GetReview(c *gin.Context) {
 		return
 	}
 
-	// Log single review view asynchronously
-	go logSingleReviewView(c, strconv.Itoa(int(review.BusinessID)), review.ID)
+	// Log single review view asynchronously (try header first, then JWT)
+	userID := getUserID(c)
+	go logSingleReviewView(userID, c, strconv.Itoa(int(review.BusinessID)), review.ID)
 
 	c.JSON(http.StatusOK, review)
 }
@@ -151,27 +169,29 @@ func updateBusinessRating(businessID uint) {
 }
 
 // logReviewViews sends review view logs to the logging service
-func logReviewViews(c *gin.Context, businessID string, reviews []models.Review) {
+func logReviewViews(userID uint, c *gin.Context, businessID string, reviews []models.Review) {
 	for _, review := range reviews {
-		logSingleReviewView(c, businessID, review.ID)
+		logSingleReviewView(userID, c, businessID, review.ID)
 	}
 }
 
 // logSingleReviewView sends a single review view log to the logging service
-func logSingleReviewView(c *gin.Context, businessID string, reviewID uint) {
+func logSingleReviewView(userID uint, c *gin.Context, businessID string, reviewID uint) {
 	loggingServiceURL := os.Getenv("LOGGING_SERVICE_URL")
 	if loggingServiceURL == "" {
 		loggingServiceURL = "http://logging-service:8083"
 	}
 
-	// TODO: 認証システム実装後の修正予定
-	// 開発用: 固定ユーザーID（PostgreSQLのusers.id=1）
-	userID := 1
+	// Use provided userID (from JWT token), fallback to anonymous if not authenticated
+	actualUserID := 1 // anonymous/guest user ID
+	if userID != 0 {
+		actualUserID = int(userID)
+	}
 
 	businessIDInt, _ := strconv.Atoi(businessID)
 
 	logData := map[string]interface{}{
-		"user_id":     userID,
+		"user_id":     actualUserID,
 		"business_id": businessIDInt,
 		"review_id":   int(reviewID),
 		"ip_address":  c.ClientIP(),
@@ -184,6 +204,7 @@ func logSingleReviewView(c *gin.Context, businessID string, reviewID uint) {
 	}
 
 	// Send to logging service (fire and forget)
+	// User ID is already included in the JSON payload, no need for headers
 	go func() {
 		resp, err := http.Post(
 			loggingServiceURL+"/logs/review-view",

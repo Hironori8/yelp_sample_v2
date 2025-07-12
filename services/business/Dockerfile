@@ -2,10 +2,17 @@ FROM golang:1.23-alpine AS builder
 
 WORKDIR /app
 
+# Copy root module files first
 COPY go.mod go.sum ./
-RUN go mod download
+COPY ./models ./models
+COPY ./database ./database
 
-COPY . .
+# Copy service specific files
+COPY ./services/business/go.mod ./services/business/go.sum ./
+COPY ./services/business .
+
+# Download dependencies for root module first
+RUN go mod download
 
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main .
 

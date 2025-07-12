@@ -2,10 +2,14 @@ FROM golang:1.23-alpine AS builder
 
 WORKDIR /app
 
-COPY go.mod go.sum ./
+# Copy service specific go.mod and go.sum
+COPY ./services/logging/go.mod ./services/logging/go.sum ./
+
+# Copy source code
+COPY ./services/logging .
+
 RUN go mod download
 
-COPY . .
 RUN go build -o main .
 
 FROM alpine:latest
