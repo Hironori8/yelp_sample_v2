@@ -277,7 +277,6 @@ yelp_sample_v2/
 │       ├── cassandra/
 │       ├── models/
 │       └── handlers/
-└── <legacy files in root>/      # 旧モノリシック版（参考用）
 ```
 
 ## セキュリティ機能
@@ -295,38 +294,6 @@ yelp_sample_v2/
 - **認証必須エンドポイント**: レビュー投稿、履歴取得等
 - **オプション認証**: パブリックエンドポイントでのログ記録
 
-## 開発
-
-### ローカル開発環境での実行
-
-個別サービスの開発時：
-
-```bash
-# データベースのみ起動
-docker-compose up -d postgres cassandra
-
-# 各サービスをローカルで起動（例：レビューサービス）
-cd services/review
-go mod download
-go run main.go
-```
-
-### ログの確認
-
-```bash
-# 全サービスのログ
-docker-compose logs
-
-# 特定サービスのログ
-docker logs yelp_gateway
-docker logs yelp_auth_service
-docker logs yelp_business_service
-docker logs yelp_review_service
-docker logs yelp_logging_service
-docker logs yelp_postgres
-docker logs yelp_cassandra
-```
-
 ## サンプルデータ
 
 `sample_data.sql`には以下のサンプルデータが含まれています：
@@ -335,90 +302,3 @@ docker logs yelp_cassandra
 - 8件のビジネス（ラーメン店、カフェ、寿司店、イタリアン、居酒屋、焼肉店、ベーカリー、中華料理）
 - 21件のレビュー
 
-### 現在のデータ状況
-```bash
-# PostgreSQLデータ件数確認
-docker exec yelp_postgres psql -U postgres -d yelp_sample -c "SELECT COUNT(*) FROM users;"
-docker exec yelp_postgres psql -U postgres -d yelp_sample -c "SELECT COUNT(*) FROM businesses;"
-docker exec yelp_postgres psql -U postgres -d yelp_sample -c "SELECT COUNT(*) FROM reviews;"
-
-# Cassandraログデータ確認
-docker exec yelp_cassandra cqlsh -e "SELECT COUNT(*) FROM yelp_logs.review_view_logs;"
-```
-
-## トラブルシューティング
-
-### ポート競合エラー
-```bash
-# 既存のコンテナを停止
-docker-compose down
-docker container prune
-
-# 再起動
-docker-compose up --build -d
-```
-
-### データベース接続エラー
-```bash
-# PostgreSQLコンテナの状態確認
-docker logs yelp_postgres
-
-# Cassandraの状態確認
-docker logs yelp_cassandra
-
-# ヘルスチェック確認
-docker-compose ps
-```
-
-### 認証エラー
-```bash
-# JWTトークンの有効性確認
-# ログイン後、即座にトークンを使用してください（24時間有効）
-
-# 認証サービスのログ確認
-docker logs yelp_auth_service
-```
-
-### サービス間通信エラー
-```bash
-# ネットワーク設定確認
-docker network ls
-docker network inspect yelp_sample_v2_backend
-docker network inspect yelp_sample_v2_frontend
-```
-
-## スケーリング
-
-個別サービスのスケーリング例：
-
-```bash
-# レビューサービスを3インスタンスにスケール
-docker-compose up --scale review-service=3 -d
-
-# ログサービスを2インスタンスにスケール
-docker-compose up --scale logging-service=2 -d
-```
-
-## ステータス
-
-✅ **完了**
-- マイクロサービスアーキテクチャの実装
-- JWT認証システムの実装
-- API Gateway での認証・ルーティング制御
-- Business/Review/Auth/Logging Service の実装
-- PostgreSQL + Cassandra データベース設定
-- ネットワーク分離・セキュリティ設定
-- ユーザー行動ログシステム
-- サンプルデータの投入
-- 全サービスの動作確認完了
-
-## 今後の拡張予定
-
-- [ ] サービス間mTLS認証の実装
-- [ ] API Gateway での負荷分散・サーキットブレーカー
-- [ ] サービスディスカバリーの導入
-- [ ] 分散トレーシング（Jaeger）の実装
-- [ ] メトリクス監視（Prometheus/Grafana）の追加
-- [ ] ログ分析・可視化機能
-- [ ] フロントエンド（Next.js）の追加
-- [ ] API レート制限の実装
