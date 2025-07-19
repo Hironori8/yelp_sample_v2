@@ -38,6 +38,12 @@ func main() {
 
 	r.GET("/health", handlers.HealthCheck)
 
+	r.GET("/ready", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"status": "ready",
+		})
+	})
+
 	// Logging endpoints
 	r.POST("/logs/review-view", handlers.LogReviewView)
 	r.GET("/logs/user/:user_id/history", handlers.GetUserViewHistory)

@@ -1,0 +1,25 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+bases:
+  - ../../base
+
+patchesStrategicMerge:
+  - replica-patch.yaml
+  - resource-patch.yaml
+
+
+commonLabels:
+  environment: production
+
+images:
+  - name: yelp-gateway
+    newTag: v1.0.0
+  - name: yelp-business-service
+    newTag: v1.0.0
+  - name: yelp-review-service
+    newTag: v1.0.0
+  - name: yelp-logging-service
+    newTag: v1.0.0
+  - name: yelp-auth-service
+    newTag: v1.0.0

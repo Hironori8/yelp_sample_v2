@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"os"
 
-	"business/handlers"
 	"business/database"
 
 	"github.com/gin-gonic/gin"
@@ -14,7 +13,7 @@ import (
 
 func main() {
 	database.Connect()
-	
+
 	r := gin.Default()
 
 	r.GET("/", func(c *gin.Context) {
@@ -26,6 +25,12 @@ func main() {
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"status": "healthy",
+		})
+	})
+
+	r.GET("/ready", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"status": "ready",
 		})
 	})
 

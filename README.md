@@ -75,8 +75,11 @@ Yelp風のレストラン検索・レビューAPIのマイクロサービス版�
 
 - Docker
 - Docker Compose
+- Kubernetes (オプション)
 
 ### 起動方法
+
+#### Docker Composeを使用する場合
 
 1. リポジトリをクローン
 ```bash
@@ -106,6 +109,31 @@ docker exec yelp_cassandra cqlsh -e "DESCRIBE KEYSPACES;"
 5. APIゲートウェイの動作確認
 ```bash
 curl http://localhost:8080/health
+```
+
+#### Kubernetesを使用する場合
+
+1. Kubernetesクラスターを準備（minikube、Docker Desktop、EKS、GKE等）
+
+2. 開発環境でデプロイ
+```bash
+kubectl apply -k k8s/overlays/dev
+```
+
+3. 本番環境でデプロイ
+```bash
+kubectl apply -k k8s/overlays/prod
+```
+
+4. サービスの起動確認
+```bash
+kubectl get pods -n yelp-microservices
+kubectl get services -n yelp-microservices
+```
+
+5. APIゲートウェイにアクセス（ポートフォワード）
+```bash
+kubectl port-forward -n yelp-microservices svc/api-gateway 8080:8080
 ```
 
 ## サービス詳細
@@ -268,7 +296,56 @@ yelp_sample_v2/
 │       ├── cassandra/
 │       ├── models/
 │       └── handlers/
+└── k8s/                         # Kubernetes設定
+    ├── README.md                # Kubernetesデプロイメント手順
+    ├── base/                    # 基本設定
+    │   ├── auth-service-deployment.yaml
+    │   ├── business-service-deployment.yaml
+    │   ├── cassandra-deployment.yaml
+    │   ├── cassandra-service.yaml
+    │   ├── configmap.yaml
+    │   ├── gateway-deployment.yaml
+    │   ├── gateway-service.yaml
+    │   ├── kustomization.yaml
+    │   ├── logging-service-deployment.yaml
+    │   ├── microservices-services.yaml
+    │   ├── namespace.yaml
+    │   ├── postgres-deployment.yaml
+    │   ├── postgres-service.yaml
+    │   ├── pvc.yaml
+    │   ├── review-service-deployment.yaml
+    │   └── secret.yaml
+    └── overlays/                # 環境別設定
+        ├── dev/                 # 開発環境
+        │   ├── kustomization.yaml
+        │   ├── replica-patch.yaml
+        │   └── resource-patch.yaml
+        └── prod/                # 本番環境
+            ├── kustomization.yaml
+            ├── replica-patch.yaml
+            └── resource-patch.yaml
 ```
+
+## Kubernetesデプロイメント
+
+本プロジェクトはKustomizeを使用して環境別の設定を管理しています：
+
+### 開発環境 (dev)
+- **レプリカ数**: 各サービス1インスタンス
+- **リソース制限**: 最小限（CPU: 100m-200m, Memory: 128Mi-256Mi）
+- **データベース**: 単一インスタンス
+
+### 本番環境 (prod)
+- **レプリカ数**: 各サービス3インスタンス（高可用性）
+- **リソース制限**: 本番仕様（CPU: 500m-1000m, Memory: 512Mi-1Gi）
+- **データベース**: 推奨: マネージドサービス（RDS、Cloud SQL等）
+
+### Kubernetes機能
+- **ConfigMap**: 環境変数の一元管理
+- **Secret**: 機密情報の安全な管理
+- **Service**: 内部通信とロードバランシング
+- **PersistentVolume**: データの永続化
+- **Namespace**: リソースの論理的分離
 
 ## セキュリティ機能
 

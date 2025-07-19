@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: yelp-config
+  namespace: yelp-app
+data:
+  DB_HOST: "postgres-service"
+  DB_NAME: "yelp_sample"
+  DB_PORT: "5432"
+  PORT_GATEWAY: "8080"
+  PORT_BUSINESS: "8081"
+  PORT_REVIEW: "8082"
+  PORT_LOGGING: "8083"
+  PORT_AUTH: "8084"
+  AUTH_SERVICE_URL: "http://auth-service:8084"
+  LOGGING_SERVICE_URL: "http://logging-service:8083"
+  CASSANDRA_HOSTS: "cassandra-service:9042"
+  CASSANDRA_CLUSTER_NAME: "yelp_cluster"
+  CASSANDRA_DC: "datacenter1"
+  CASSANDRA_RACK: "rack1"
+  CASSANDRA_ENDPOINT_SNITCH: "GossipingPropertyFileSnitch"
+  JWT_EXPIRES_IN: "24h"

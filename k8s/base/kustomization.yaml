@@ -1,0 +1,37 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: yelp-app
+
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - secret.yaml
+  - pvc.yaml
+  - postgres-deployment.yaml
+  - postgres-service.yaml
+  - cassandra-deployment.yaml
+  - cassandra-service.yaml
+  - gateway-deployment.yaml
+  - gateway-service.yaml
+  - business-service-deployment.yaml
+  - review-service-deployment.yaml
+  - logging-service-deployment.yaml
+  - auth-service-deployment.yaml
+  - microservices-services.yaml
+
+commonLabels:
+  project: yelp-sample
+  version: v1.0.0
+
+images:
+  - name: yelp-gateway
+    newTag: latest
+  - name: yelp-business-service
+    newTag: latest
+  - name: yelp-review-service
+    newTag: latest
+  - name: yelp-logging-service
+    newTag: latest
+  - name: yelp-auth-service
+    newTag: latest

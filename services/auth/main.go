@@ -27,6 +27,13 @@ func main() {
 		})
 	})
 
+	r.GET("/ready", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"status":  "ready",
+			"service": "auth-service",
+		})
+	})
+
 	// Authentication routes
 	auth := r.Group("/auth")
 	{

@@ -106,6 +106,12 @@ func main() {
 		})
 	})
 
+	r.GET("/ready", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"status": "ready",
+		})
+	})
+
 	// Auth service routes (public)
 	authServiceURL := os.Getenv("AUTH_SERVICE_URL")
 	if authServiceURL == "" {
