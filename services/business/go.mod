@@ -11,7 +11,7 @@ require (
 	gorm.io/gorm v1.30.0
 )
 
-replace github.com/yelp-sample-v2/shared/models => ./shared/models
+replace github.com/yelp-sample-v2/shared/models => ../../shared/models
 
 require (
 	github.com/bytedance/sonic v1.11.6 // indirect

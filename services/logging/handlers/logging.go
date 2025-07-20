@@ -1,12 +1,12 @@
 package handlers
 
 import (
+	"logging/models"
 	"net/http"
 	"strconv"
 	"time"
 
 	"logging/cassandra"
-	"logging/models"
 
 	"github.com/gin-gonic/gin"
 	"github.com/scylladb/gocqlx/v2/qb"

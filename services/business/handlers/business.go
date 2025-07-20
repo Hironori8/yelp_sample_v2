@@ -1,13 +1,12 @@
 package handlers
 
 import (
+	"github.com/gin-gonic/gin"
+	"github.com/yelp-sample-v2/shared/models"
 	"net/http"
 	"strconv"
 
 	"business/database"
-
-	"github.com/gin-gonic/gin"
-	"github.com/yelp-sample-v2/shared/models"
 )
 
 func SearchBusinesses(c *gin.Context) {

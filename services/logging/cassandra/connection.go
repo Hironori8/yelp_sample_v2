@@ -19,10 +19,22 @@ func Connect() error {
 	}
 
 	cluster := gocql.NewCluster(hosts)
+	//- Quorum: 読み書き時に過半数のレプリカから応答を要求
+	//- データの一貫性と可用性のバランスが良い設定
+	//- 例：3レプリカなら2つのノードから応答が必要
 	cluster.Consistency = gocql.Quorum
+	//- CassandraのCQLプロトコルバージョン4を使用
+	//- Cassandra 2.2以降でサポート
+	//- より効率的な通信とパフォーマンス向上
 	cluster.ProtoVersion = 4
+	//- 初回接続時のタイムアウト: 10秒
+	//- ノードへの接続確立の待ち時間
 	cluster.ConnectTimeout = time.Second * 10
+	//- クエリ実行のタイムアウト: 10秒
+	//- 個々のクエリの最大実行時間
 	cluster.Timeout = time.Second * 10
+	//- 失敗時の再試行回数: 3回
+	//- ネットワークエラーや一時的な障害に対応
 	cluster.RetryPolicy = &gocql.SimpleRetryPolicy{NumRetries: 3}
 
 	session, err := gocqlx.WrapSession(cluster.CreateSession())
@@ -46,6 +58,9 @@ func AutoMigrate() error {
 	log.Println("Running Cassandra migrations...")
 
 	// Create keyspace
+	//replication_factor: 1
+	//	- SimpleStrategy: 単一データセンター向け
+	//	- レプリカ数1: 開発環境向け（本番では3以上推奨）
 	createKeyspace := `
 		CREATE KEYSPACE IF NOT EXISTS yelp_logs WITH replication = {
 			'class': 'SimpleStrategy',
@@ -56,8 +71,6 @@ func AutoMigrate() error {
 	if err := Session.ExecStmt(createKeyspace); err != nil {
 		return fmt.Errorf("failed to create keyspace: %w", err)
 	}
-
-	// Note: gocql doesn't support USE statements, we specify keyspace in table names
 
 	// Create review_view_logs table (with keyspace prefix)
 	createTable := `

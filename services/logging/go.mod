@@ -8,7 +8,10 @@ require (
 	github.com/gin-gonic/gin v1.10.1
 	github.com/gocql/gocql v1.7.0
 	github.com/scylladb/gocqlx/v2 v2.8.0
+	github.com/yelp-sample-v2/shared/models v0.0.0-00010101000000-000000000000
 )
+
+replace github.com/yelp-sample-v2/shared/models => ../../shared/models
 
 require (
 	github.com/bytedance/sonic v1.11.6 // indirect
